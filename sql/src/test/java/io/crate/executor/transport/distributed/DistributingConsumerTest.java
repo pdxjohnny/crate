@@ -60,7 +60,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
         ExecutorService executorService = Executors.newFixedThreadPool(3);
         try {
             Streamer<?>[] streamers = {DataTypes.INTEGER.streamer()};
-            TestingBatchConsumer collectingConsumer = new TestingBatchConsumer();
+            TestingRowConsumer collectingConsumer = new TestingRowConsumer();
             PageDownstreamContext pageDownstreamContext = createPageDownstreamContext(streamers, collectingConsumer);
             TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, pageDownstreamContext);
             DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
@@ -91,7 +91,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
     @Test
     public void testDistributingConsumerForwardsFailure() throws Exception {
         Streamer<?>[] streamers = { DataTypes.INTEGER.streamer() };
-        TestingBatchConsumer collectingConsumer = new TestingBatchConsumer();
+        TestingRowConsumer collectingConsumer = new TestingRowConsumer();
         PageDownstreamContext pageDownstreamContext = createPageDownstreamContext(streamers, collectingConsumer);
         TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, pageDownstreamContext);
         DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
@@ -106,7 +106,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
     @Test
     public void testFailureOnAllLoadedIsForwarded() throws Exception {
         Streamer<?>[] streamers = { DataTypes.INTEGER.streamer() };
-        TestingBatchConsumer collectingConsumer = new TestingBatchConsumer();
+        TestingRowConsumer collectingConsumer = new TestingRowConsumer();
         PageDownstreamContext pageDownstreamContext = createPageDownstreamContext(streamers, collectingConsumer);
         TransportDistributedResultAction distributedResultAction = createFakeTransport(streamers, pageDownstreamContext);
         DistributingConsumer distributingConsumer = createDistributingConsumer(streamers, distributedResultAction);
@@ -133,7 +133,7 @@ public class DistributingConsumerTest extends CrateUnitTest {
         );
     }
 
-    private PageDownstreamContext createPageDownstreamContext(Streamer<?>[] streamers, TestingBatchConsumer collectingConsumer) {
+    private PageDownstreamContext createPageDownstreamContext(Streamer<?>[] streamers, TestingRowConsumer collectingConsumer) {
         return new PageDownstreamContext(
                 logger,
                 "n1",
