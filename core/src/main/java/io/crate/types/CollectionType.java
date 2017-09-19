@@ -72,6 +72,11 @@ public abstract class CollectionType extends DataType {
         DataTypes.toStream(innerType, out);
     }
 
+    @Override
+    public Precedence precedence() {
+        return Precedence.CollectionType;
+    }
+
     public String getName() {
         return innerType.getName();
     }
@@ -85,6 +90,16 @@ public abstract class CollectionType extends DataType {
      * @param innerType The inner type of the new CollectionType.
      */
     public abstract CollectionType newInstance(DataType innerType);
+
+    @Override
+    public boolean isNumeric() {
+        return innerType.isNumeric();
+    }
+
+    @Override
+    public boolean isDecimal() {
+        return innerType.isDecimal();
+    }
 
     @Override
     public int compareTo(Object o) {

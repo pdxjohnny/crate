@@ -633,6 +633,7 @@ public class RelationAnalyzer extends DefaultTraversalVisitor<AnalyzedRelation, 
         );
 
         Symbol symbol = expressionAnalyzer.convert(node.functionCall(), context.expressionAnalysisContext());
+
         if (!(symbol instanceof Function)) {
             throw new UnsupportedOperationException(
                 String.format(

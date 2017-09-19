@@ -23,6 +23,9 @@ package io.crate.sql.tree;
 
 import com.google.common.base.Preconditions;
 
+/**
+ * TODO mxm perhaps also store a string here?
+ */
 public class LongLiteral
     extends Literal {
     private final long value;

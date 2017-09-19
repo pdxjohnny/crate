@@ -71,7 +71,7 @@ public class ExpressionToNumberVisitor extends AstVisitor<Number, Row> {
 
     @Override
     protected Number visitDoubleLiteral(DoubleLiteral node, Row context) {
-        return node.getValue();
+        return Double.valueOf(node.getValue());
     }
 
     @Override

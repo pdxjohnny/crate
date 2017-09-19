@@ -74,6 +74,7 @@ import io.crate.operation.scalar.arithmetic.MapFunction;
 import io.crate.operation.scalar.cast.CastFunctionResolver;
 import io.crate.operation.scalar.conditional.IfFunction;
 import io.crate.operation.scalar.timestamp.CurrentTimestampFunction;
+import io.crate.planner.node.dql.Collect;
 import io.crate.sql.ExpressionFormatter;
 import io.crate.sql.parser.SqlParser;
 import io.crate.sql.tree.ArithmeticExpression;
@@ -116,12 +117,16 @@ import io.crate.sql.tree.SubscriptExpression;
 import io.crate.sql.tree.TryCast;
 import io.crate.sql.tree.WhenClause;
 import io.crate.types.ArrayType;
+import io.crate.types.BooleanType;
 import io.crate.types.CollectionType;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
+import io.crate.types.DoubleType;
 import io.crate.types.GeoPointType;
+import io.crate.types.GeoShapeType;
 import io.crate.types.SetType;
 import io.crate.types.SingleColumnTableType;
+import io.crate.types.StringType;
 import io.crate.types.UndefinedType;
 
 import javax.annotation.Nullable;
@@ -322,9 +327,10 @@ public class ExpressionAnalyzer {
         if (!symbolToCast.valueType().equals(targetType)) {
             boolean containsField = SymbolVisitors.any(symbol -> symbol instanceof Field, symbolToCast);
             if ((symbolToCast.valueType().id() == UndefinedType.ID || !containsField) &&
-                    (sourceType.isConvertableTo(targetType) || canBeCasted(sourceType, targetType, symbolToCast))) {
+                    (sourceType.isConvertableTo(targetType) && canBeCasted(sourceType, targetType, symbolToCast))) {
                 return cast(symbolToCast, targetType, false);
-            } else if (castIsRequired) {
+            }
+            if (castIsRequired) {
                 throw new ConversionException(symbolToCast, targetType);
             }
         }
@@ -349,8 +355,8 @@ public class ExpressionAnalyzer {
             return canBeCasted(sourceInnerType, targetInnerType, symbolToCast);
         }
         return checkForSpecialTypeHandling(symbolToCast, targetType) ||
-                                    targetType.precedes(sourceType) ||
-                                    sourceType.id() == UndefinedType.ID;
+                                     targetType.precedes(sourceType) ||
+                                     sourceType.id() == UndefinedType.ID;
     }
 
     /**
@@ -359,36 +365,68 @@ public class ExpressionAnalyzer {
      * @param targetType The target type to cast to.
      * @return True if it is safe to cast the symbol to the target type.
      */
-    private static boolean checkForSpecialTypeHandling(Symbol sourceSymbol, DataType targetType) {
+    private static boolean checkForSpecialTypeHandling(@Nullable Symbol sourceSymbol, DataType targetType) {
         if (sourceSymbol == null || sourceSymbol.symbolType() != SymbolType.LITERAL) {
             return false;
         }
         DataType sourceType = sourceSymbol.valueType();
-        // handles cases of lower type precedence with potential loss of entropy
+        // handles cases of higher to lower type precedence with potential loss of entropy
         if (sourceType.precedes(targetType)) {
             if (sourceType.isNumeric()) {
-                Number value = (Number) ((Literal) sourceSymbol).value();
-                if (sourceType.isDecimal()) {
-                    return value.doubleValue() == value.floatValue();
-                } else {
-                    long minValue = Long.MIN_VALUE;
-                    long maxValue = Long.MAX_VALUE;
-                    if (value instanceof Short) {
-                        minValue = Short.MIN_VALUE;
-                        maxValue = Short.MAX_VALUE;
-                    } else if (value instanceof Integer) {
-                        minValue = Integer.MIN_VALUE;
-                        maxValue = Integer.MAX_VALUE;
+                Object value = ((Literal)sourceSymbol).value();
+                if (DataTypes.isCollectionType(sourceType)) {
+                    boolean safe = false;
+                    for (Object v : (Object[]) value) {
+                        safe |= checkIfValueCanBeUpcasted(v, targetType);
                     }
-                    long longValue = value.longValue();
-                    return longValue >= minValue && longValue <= maxValue;
+                    return safe;
+                } else {
+                    return checkIfValueCanBeUpcasted(value, targetType);
                 }
             } else if (DataTypes.isCollectionType(sourceType) && targetType.id() == GeoPointType.ID) {
+                return true;
+            } else if (sourceType.id() == StringType.ID && targetType.id() == GeoShapeType.ID) {
+                return true;
+            } else if (sourceType.id() == StringType.ID && targetType.id() == BooleanType.ID) {
                 return true;
             }
         }
         return false;
     }
+
+    public static void main(String[] args) {
+        double d = 3.042;
+        System.out.println(d);
+        System.out.println((float) d == d);
+        System.out.println(String.valueOf(d));
+        System.out.println(String.valueOf((float)d));
+        System.out.println(String.valueOf(d).equals(String.valueOf((float)d)));
+    }
+
+    private static boolean checkIfValueCanBeUpcasted(Object value, DataType dataType) {
+        if (DataTypes.isCollectionType(dataType)) {
+            return checkIfValueCanBeUpcasted(value, ((CollectionType) dataType).innerType());
+        }
+        if (dataType.isDecimal()) {
+            Number d = (Number) value;
+//            return d.doubleValue() == d.floatValue();
+            // TODO mxm this seems expensive
+            return String.valueOf(d.doubleValue()).equals(String.valueOf(d.floatValue()));
+        } else {
+            long minValue = Long.MIN_VALUE;
+            long maxValue = Long.MAX_VALUE;
+            if (value instanceof Short) {
+                minValue = Short.MIN_VALUE;
+                maxValue = Short.MAX_VALUE;
+            } else if (value instanceof Integer) {
+                minValue = Integer.MIN_VALUE;
+                maxValue = Integer.MAX_VALUE;
+            }
+            long longValue = ((Number) value).longValue();
+            return longValue >= minValue && longValue <= maxValue;
+        }
+    }
+
 
     /**
      * Explicitly cast a Symbol to a type (possible with loss of entropy).
@@ -801,6 +839,9 @@ public class ExpressionAnalyzer {
             Symbol left = process(node.getLeft(), context);
             Symbol right = process(node.getRight(), context);
 
+            left = castIfNeeded(left, right.valueType());
+            right = castIfNeededOrFail(right, left.valueType());
+
             return allocateFunction(
                 getBuiltinFunctionInfo(
                     node.getType().name().toLowerCase(Locale.ENGLISH),
@@ -839,11 +880,19 @@ public class ExpressionAnalyzer {
 
         @Override
         protected Symbol visitDoubleLiteral(DoubleLiteral node, ExpressionAnalysisContext context) {
+//            DataType desiredType = context.getDesiredType();
+//            if (desiredType != null) {
+//                return Literal.of(desiredType, desiredType.value(node.getValue()));
+//            }
             return Literal.of(node.getValue());
         }
 
         @Override
         protected Symbol visitLongLiteral(LongLiteral node, ExpressionAnalysisContext context) {
+//            DataType desiredType = context.getDesiredType();
+//            if (desiredType != null) {
+//                return Literal.of(desiredType, desiredType.value(node.getValue()));
+//            }
             return Literal.of(node.getValue());
         }
 

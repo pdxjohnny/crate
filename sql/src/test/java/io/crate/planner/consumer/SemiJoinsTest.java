@@ -160,8 +160,8 @@ public class SemiJoinsTest extends CrateDummyClusterServiceUnitTest {
     public void testWriteWithMultipleInClauses() throws Exception {
         SelectAnalyzedStatement stmt = executor.analyze("select * from t1 " +
                                                         "where " +
-                                                        "   x in (select col1::integer from unnest([1, 2])) " +
-                                                        "   and x not in (select 1::integer)");
+                                                        "   x in (select col1 from unnest([1, 2])) " +
+                                                        "   and x not in (select 1)");
         QueriedRelation rel = stmt.relation();
         QueriedRelation semiJoins = this.semiJoins.tryRewrite(rel, new TransactionContext(SessionContext.create()));
 

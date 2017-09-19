@@ -50,11 +50,6 @@ public class SetType extends CollectionType {
     }
 
     @Override
-    public Precedence precedence() {
-        return Precedence.SetType;
-    }
-
-    @Override
     public String getName() {
         return super.getName() + "_set";
     }

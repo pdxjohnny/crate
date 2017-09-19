@@ -45,11 +45,6 @@ public class SingleColumnTableType extends CollectionType {
     }
 
     @Override
-    public Precedence precedence() {
-        return Precedence.Custom;
-    }
-
-    @Override
     public String getName() {
         return super.getName() + "_table";
     }

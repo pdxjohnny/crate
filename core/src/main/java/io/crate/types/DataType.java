@@ -44,7 +44,6 @@ public abstract class DataType<T> implements Comparable, Streamable {
      * https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-type-precedence-transact-sql
      *
      */
-    @SuppressWarnings("WeakerAccess")
     public enum Precedence {
         NotSupportedType,
         UndefinedType,
@@ -61,9 +60,7 @@ public abstract class DataType<T> implements Comparable, Streamable {
         StringType,
         TimestampType,
         ObjectType,
-        ArrayType,
-        SetType,
-        SingleColumnTableType,
+        CollectionType,
         Custom
     }
 
