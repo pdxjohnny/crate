@@ -129,6 +129,7 @@ public final class DataTypes {
         .build();
     // allowed conversion from key to one of the value types
     // the key type itself does not need to be in the value set
+    // TODO mxm use these
     static final ImmutableMap<Integer, Set<DataType>> ALLOWED_CONVERSIONS = ImmutableMap.<Integer, Set<DataType>>builder()
         .put(BYTE.id(), NUMBER_CONVERSIONS)
         .put(SHORT.id(), NUMBER_CONVERSIONS)

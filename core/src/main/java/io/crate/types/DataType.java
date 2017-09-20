@@ -47,20 +47,19 @@ public abstract class DataType<T> implements Comparable, Streamable {
     public enum Precedence {
         NotSupportedType,
         UndefinedType,
+        StringType,
         ByteType,
         BooleanType,
         ShortType,
         IntegerType,
+        TimestampType,
         LongType,
         FloatType,
         DoubleType,
-        GeoPointType,
-        GeoShapeType,
-        IpType,
-        StringType,
-        TimestampType,
-        ObjectType,
         CollectionType,
+        GeoPointType,
+        ObjectType,
+        GeoShapeType,
         Custom
     }
 

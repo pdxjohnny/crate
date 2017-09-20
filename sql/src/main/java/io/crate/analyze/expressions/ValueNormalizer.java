@@ -27,6 +27,7 @@ import io.crate.analyze.symbol.DynamicReference;
 import io.crate.analyze.symbol.Literal;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.analyze.symbol.format.SymbolFormatter;
+import io.crate.analyze.symbol.format.SymbolPrinter;
 import io.crate.exceptions.ColumnUnknownException;
 import io.crate.exceptions.ColumnValidationException;
 import io.crate.exceptions.ConversionException;
@@ -57,11 +58,20 @@ public class ValueNormalizer {
         assert valueSymbol != null : "valueSymbol must not be null";
 
         DataType<?> targetType = getTargetType(valueSymbol, reference);
-        valueSymbol = ExpressionAnalyzer.castIfNeededOrFail(valueSymbol, targetType);
         if (!(valueSymbol instanceof Literal)) {
-            return valueSymbol;
+            return ExpressionAnalyzer.castIfNeededOrFail(valueSymbol, targetType);
+//            return valueSymbol;
         }
         Literal literal = (Literal) valueSymbol;
+        try {
+            literal = Literal.convert(literal, reference.valueType());
+        } catch (ConversionException e) {
+            throw new ColumnValidationException(
+                reference.ident().columnIdent().name(),
+                tableInfo.ident(),
+                String.format(Locale.ENGLISH, "Cannot cast %s to type %s", SymbolPrinter.INSTANCE.printSimple(valueSymbol),
+                    reference.valueType().getName()));
+        }
         Object value = literal.value();
         if (value == null) {
             return literal;

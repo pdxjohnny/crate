@@ -237,6 +237,8 @@ public class ExpressionAnalyzer {
         for (Expression expression : node.getArguments()) {
             Symbol argSymbol = expression.accept(innerAnalyzer, context);
 
+
+            // TODO mxm apply casting logic here
             argumentTypes.add(argSymbol.valueType());
             arguments.add(argSymbol);
         }
@@ -327,7 +329,8 @@ public class ExpressionAnalyzer {
         if (!symbolToCast.valueType().equals(targetType)) {
             boolean containsField = SymbolVisitors.any(symbol -> symbol instanceof Field, symbolToCast);
             if ((symbolToCast.valueType().id() == UndefinedType.ID || !containsField) &&
-                    (sourceType.isConvertableTo(targetType) && canBeCasted(sourceType, targetType, symbolToCast))) {
+                    (sourceType.isConvertableTo(targetType))) {
+//                    (sourceType.isConvertableTo(targetType) && targetType.precedes(sourceType))) {
                 return cast(symbolToCast, targetType, false);
             }
             if (castIsRequired) {
@@ -354,9 +357,9 @@ public class ExpressionAnalyzer {
             DataType<?> targetInnerType = ((CollectionType) targetType).innerType();
             return canBeCasted(sourceInnerType, targetInnerType, symbolToCast);
         }
-        return checkForSpecialTypeHandling(symbolToCast, targetType) ||
-                                     targetType.precedes(sourceType) ||
-                                     sourceType.id() == UndefinedType.ID;
+        return targetType.precedes(sourceType)                       ||
+               checkForSpecialTypeHandling(symbolToCast, targetType) ||
+               sourceType.id() == UndefinedType.ID;
     }
 
     /**
@@ -392,15 +395,6 @@ public class ExpressionAnalyzer {
             }
         }
         return false;
-    }
-
-    public static void main(String[] args) {
-        double d = 3.042;
-        System.out.println(d);
-        System.out.println((float) d == d);
-        System.out.println(String.valueOf(d));
-        System.out.println(String.valueOf((float)d));
-        System.out.println(String.valueOf(d).equals(String.valueOf((float)d)));
     }
 
     private static boolean checkIfValueCanBeUpcasted(Object value, DataType dataType) {
@@ -730,9 +724,6 @@ public class ExpressionAnalyzer {
         protected Symbol visitComparisonExpression(ComparisonExpression node, ExpressionAnalysisContext context) {
             Symbol left = process(node.getLeft(), context);
             Symbol right = process(node.getRight(), context);
-
-            left = castIfNeeded(left, right.valueType());
-            right = castIfNeededOrFail(right, left.valueType());
 
             Comparison comparison = new Comparison(functions, transactionContext, node.getType(), left, right);
             comparison.normalize(context);
