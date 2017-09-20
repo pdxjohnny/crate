@@ -47,6 +47,7 @@ public abstract class DataType<T> implements Comparable, Streamable {
     public enum Precedence {
         NotSupportedType,
         UndefinedType,
+        LiteralType,
         StringType,
         ByteType,
         BooleanType,

@@ -54,12 +54,20 @@ public class Functions {
     private Map<String, FunctionResolver> generateFunctionResolvers(Map<FunctionIdent, FunctionImplementation> functionImplementations) {
         Multimap<String, Tuple<FunctionIdent, FunctionImplementation>> signatures = getSignatures(functionImplementations);
         return signatures.keys().stream()
+            // TODO mxm do we need that?
             .distinct()
             .collect(Collectors.toMap(name -> name, name -> new GeneratedFunctionResolver(signatures.get(name))));
     }
 
+    /**
+     * Adds all provided {@link FunctionIdent} to a Multimap with the function
+     * name as key and all possible overloads as values.
+     * @param functionImplementations A map of all {@link FunctionIdent}.
+     * @return The MultiMap with the function name as key and a tuple of
+     *         FunctionIdent and FunctionImplementation as value.
+     */
     private Multimap<String, Tuple<FunctionIdent, FunctionImplementation>> getSignatures(
-        Map<FunctionIdent, FunctionImplementation> functionImplementations) {
+            Map<FunctionIdent, FunctionImplementation> functionImplementations) {
         Multimap<String, Tuple<FunctionIdent, FunctionImplementation>> signatureMap = ArrayListMultimap.create();
         for (Map.Entry<FunctionIdent, FunctionImplementation> entry : functionImplementations.entrySet()) {
             signatureMap.put(entry.getKey().name(), new Tuple<>(entry.getKey(), entry.getValue()));

@@ -7,6 +7,7 @@ import io.crate.types.ArrayType;
 import io.crate.types.CollectionType;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
+import io.crate.types.LiteralType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +27,7 @@ import java.util.stream.Stream;
 
 public class Literal<ReturnType> extends Symbol implements Input<ReturnType>, Comparable<Literal> {
 
+    // TODO mxm literal always of type OverloadedType
     private final Object value;
     private final DataType type;
 
@@ -64,7 +66,7 @@ public class Literal<ReturnType> extends Symbol implements Input<ReturnType>, Co
 
     private Literal(DataType type, ReturnType value) {
         assert typeMatchesValue(type, value) : String.format(Locale.ENGLISH, "value %s is not of type %s", value, type.getName());
-        this.type = type;
+        this.type = new LiteralType(type);
         this.value = value;
     }
 

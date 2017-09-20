@@ -871,19 +871,11 @@ public class ExpressionAnalyzer {
 
         @Override
         protected Symbol visitDoubleLiteral(DoubleLiteral node, ExpressionAnalysisContext context) {
-//            DataType desiredType = context.getDesiredType();
-//            if (desiredType != null) {
-//                return Literal.of(desiredType, desiredType.value(node.getValue()));
-//            }
             return Literal.of(node.getValue());
         }
 
         @Override
         protected Symbol visitLongLiteral(LongLiteral node, ExpressionAnalysisContext context) {
-//            DataType desiredType = context.getDesiredType();
-//            if (desiredType != null) {
-//                return Literal.of(desiredType, desiredType.value(node.getValue()));
-//            }
             return Literal.of(node.getValue());
         }
 

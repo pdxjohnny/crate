@@ -27,7 +27,9 @@ import io.crate.types.ArrayType;
 import io.crate.types.CollectionType;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
+import io.crate.types.LiteralType;
 import io.crate.types.SetType;
+import io.crate.types.StringType;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -41,6 +43,7 @@ import java.util.function.UnaryOperator;
  * Static constructors for generating signature operators and argument type matchers to be used
  * with {@link FunctionResolver#getSignature}.
  */
+// TODO mxm implement type logic
 public class Signature {
 
     public static final SignatureOperator EMPTY = dataTypes -> dataTypes.isEmpty() ? dataTypes : null;
@@ -231,6 +234,7 @@ public class Signature {
          * @return a new argument matcher
          */
         @SafeVarargs
+        // TODO mxm remove this doesn't return a DataType to cast to
         static ArgMatcher of(final Predicate<DataType>... predicates) {
             return dt -> {
                 for (Predicate<DataType> predicate : predicates) {
@@ -244,14 +248,16 @@ public class Signature {
 
 
         /**
-         * Creates a matcher which matches one given type and rewrites the undefined type to the required type.
+         * Creates a matcher which matches one given type and
+         * rewrites an UndefinedType or a LiteralType to a required type.
          *
          * @param targetType the type to match agains
          * @return a new argument matcher
          */
         static ArgMatcher rewriteTo(final DataType targetType) {
             return dt -> {
-                if (targetType.equals(dt) || IS_UNDEFINED.test(dt)) {
+                // TODO mxm
+                if (targetType.equals(dt) || targetType.id() == LiteralType.ID || IS_UNDEFINED.test(dt)) {
                     return targetType;
                 }
                 return null;
@@ -321,6 +327,36 @@ public class Signature {
             this.checkVarArgTypes = strictVarArgTypes;
         }
 
+        public static void main(String[] args) {
+            Object[] types = new Object[16];
+            for (int i=0; i < types.length; i++) {
+                if (i % 2 == 0) {
+                    types[i] = (double) i;
+                } else {
+                    types[i] = i;
+                }
+            }
+            System.out.println(Arrays.toString(types));
+
+            final ArrayList<Object> objects = new ArrayList<>();
+
+            int maxPrecedence = 42;
+            int maxPrecedenceIndex = 0;
+            for (int i=1; i < types.length; i++) {
+                int precedence = types[i] instanceof Double ? 42 : 1;
+                if (precedence > maxPrecedence) {
+                    maxPrecedence = precedence;
+                    maxPrecedenceIndex = i;
+                }
+            }
+            System.out.println("max preceedence is at index " + maxPrecedenceIndex + " with value " + types[maxPrecedenceIndex]);
+
+            List<DataType> typeList = new ArrayList<>();
+            typeList.add(StringType.INSTANCE);
+            StandardArgs standardArgs = new StandardArgs(new ArgMatcher[]{ArgMatcher.ANY});
+            System.out.println(standardArgs.apply(typeList));
+        }
+
         /**
          * Checks if all non undefined types in the given list are the same, beginning @start index and returns the
          * common type. If all types are undefined, undefined is returned.
@@ -344,7 +380,8 @@ public class Signature {
         @Override
         public List<DataType> apply(List<DataType> dataTypes) {
             ArgMatcher varArgMatcher = matchers[matchers.length - 1];
-            if (dataTypes.size() != matchers.length) {
+            boolean hasPotentialVarArgs = dataTypes.size() != matchers.length;
+            if (hasPotentialVarArgs) {
                 if (varArgs && dataTypes.size() > matchers.length) {
                     if (checkVarArgTypes) {
                         DataType commonType = getCommonType(dataTypes, matchers.length - 1);
