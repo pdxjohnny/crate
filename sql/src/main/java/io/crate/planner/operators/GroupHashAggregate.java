@@ -23,12 +23,13 @@
 package io.crate.planner.operators;
 
 import io.crate.analyze.OrderBy;
+import io.crate.analyze.relations.AbstractTableRelation;
 import io.crate.analyze.symbol.AggregateMode;
 import io.crate.analyze.symbol.Function;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.collections.Lists2;
 import io.crate.metadata.RowGranularity;
-import io.crate.metadata.table.TableInfo;
+import io.crate.metadata.doc.DocTableInfo;
 import io.crate.operation.projectors.TopN;
 import io.crate.planner.Merge;
 import io.crate.planner.Plan;
@@ -38,12 +39,15 @@ import io.crate.planner.node.ExecutionPhases;
 import io.crate.planner.node.dql.GroupByConsumer;
 import io.crate.planner.node.dql.MergePhase;
 import io.crate.planner.projection.GroupProjection;
+import io.crate.planner.projection.Projection;
 import io.crate.planner.projection.builder.ProjectionBuilder;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import static io.crate.planner.operators.LogicalPlanner.NO_LIMIT;
 import static io.crate.planner.operators.LogicalPlanner.extractColumns;
@@ -82,37 +86,54 @@ public class GroupHashAggregate implements LogicalPlan {
                       @Nullable Integer pageSizeHint) {
 
         Plan plan = source.build(plannerContext, projectionBuilder, NO_LIMIT, 0, null, null);
-        if (ExecutionPhases.executesOnHandler(plannerContext.handlerNode(), plan.resultDescription().nodeIds())) {
+        List<Symbol> sourceOutputs = source.outputs();
+        if (plan.resultDescription().hasRemainingLimitOrOffset()) {
+            plan = Merge.ensureOnHandler(plan, plannerContext);
+        }
+        boolean sourceHasRowAuthority = sourceHasRowAuthority();
+        if (sourceHasRowAuthority ||
+            ExecutionPhases.executesOnHandler(plannerContext.handlerNode(), plan.resultDescription().nodeIds())) {
+
             GroupProjection groupProjection = projectionBuilder.groupProjection(
-                source.outputs(),
+                sourceOutputs,
                 groupKeys,
                 aggregates,
                 AggregateMode.ITER_FINAL,
-                RowGranularity.CLUSTER
+                sourceHasRowAuthority && source.preferShardProjections() ? RowGranularity.SHARD : RowGranularity.CLUSTER
             );
             plan.addProjection(groupProjection);
             return plan;
         }
 
-
         GroupProjection toPartial = projectionBuilder.groupProjection(
-            source.outputs(),
+            sourceOutputs,
             groupKeys,
             aggregates,
             AggregateMode.ITER_PARTIAL,
-            RowGranularity.SHARD
+            source.preferShardProjections() ? RowGranularity.SHARD : RowGranularity.NODE
         );
         plan.addProjection(toPartial);
         plan.setDistributionInfo(DistributionInfo.DEFAULT_MODULO);
 
-
         GroupProjection toFinal = projectionBuilder.groupProjection(
-            outputs,
+            this.outputs,
             groupKeys,
             aggregates,
             AggregateMode.PARTIAL_FINAL,
             RowGranularity.CLUSTER
         );
+        return createMerge(
+            plannerContext,
+            plan,
+            Collections.singletonList(toFinal),
+            plan.resultDescription().nodeIds()
+        );
+    }
+
+    private Plan createMerge(Planner.Context plannerContext,
+                             Plan plan,
+                             List<Projection> projections,
+                             Collection<String> nodeIds) {
         return new Merge(
             plan,
             new MergePhase(
@@ -120,18 +141,27 @@ public class GroupHashAggregate implements LogicalPlan {
                 plannerContext.nextExecutionPhaseId(),
                 DISTRIBUTED_MERGE_PHASE_NAME,
                 plan.resultDescription().nodeIds().size(),
-                plan.resultDescription().nodeIds(),
+                nodeIds,
                 plan.resultDescription().streamOutputs(),
-                Collections.singletonList(toFinal),
+                projections,
                 DistributionInfo.DEFAULT_BROADCAST,
                 null
             ),
             TopN.NO_LIMIT,
             TopN.NO_OFFSET,
-            outputs.size(),
+            this.outputs.size(),
             TopN.NO_LIMIT,
             null
         );
+    }
+
+    private boolean sourceHasRowAuthority() {
+        return source instanceof Collect &&
+               ((Collect) source).tableInfo instanceof DocTableInfo &&
+               GroupByConsumer.groupedByClusteredColumnOrPrimaryKeys(
+                   ((DocTableInfo) ((Collect) source).tableInfo),
+                   ((Collect) source).where,
+                   groupKeys);
     }
 
     @Override
@@ -149,8 +179,21 @@ public class GroupHashAggregate implements LogicalPlan {
     }
 
     @Override
-    public List<TableInfo> baseTables() {
+    public Map<Symbol, Symbol> expressionMapping() {
+        return source.expressionMapping();
+    }
+
+    @Override
+    public List<AbstractTableRelation> baseTables() {
         return source.baseTables();
     }
 
+    @Override
+    public String toString() {
+        return "GroupBy{" +
+               "src=" + source +
+               ", keys=" + groupKeys +
+               ", agg=" + aggregates +
+               '}';
+    }
 }

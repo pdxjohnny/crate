@@ -22,8 +22,11 @@
 
 package io.crate.planner.operators;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import io.crate.analyze.OrderBy;
 import io.crate.analyze.WhereClause;
+import io.crate.analyze.relations.AbstractTableRelation;
 import io.crate.analyze.symbol.Function;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.metadata.Routing;
@@ -48,13 +51,17 @@ import java.util.List;
 public class Count implements LogicalPlan {
 
     private static final String COUNT_PHASE_NAME = "count-merge";
-    final TableInfo tableInfo;
-    final WhereClause where;
-    private final List<Symbol> outputs;
 
-    Count(Function countFunction, TableInfo tableInfo, WhereClause where) {
+    final AbstractTableRelation<TableInfo> tableRelation;
+    final WhereClause where;
+
+    private final List<Symbol> outputs;
+    private final List<AbstractTableRelation> baseTables;
+
+    Count(Function countFunction, AbstractTableRelation<TableInfo> tableRelation, WhereClause where) {
         this.outputs = Collections.singletonList(countFunction);
-        this.tableInfo = tableInfo;
+        this.tableRelation = tableRelation;
+        this.baseTables = Collections.singletonList(tableRelation);
         this.where = where;
     }
 
@@ -67,7 +74,7 @@ public class Count implements LogicalPlan {
                       @Nullable Integer pageSizeHint) {
 
         Routing routing = plannerContext.allocateRouting(
-            tableInfo, where, null, plannerContext.transactionContext().sessionContext());
+            tableRelation.tableInfo(), where, null, plannerContext.transactionContext().sessionContext());
         CountPhase countPhase = new CountPhase(
             plannerContext.nextExecutionPhaseId(),
             routing,
@@ -99,7 +106,12 @@ public class Count implements LogicalPlan {
     }
 
     @Override
-    public List<TableInfo> baseTables() {
-        return Collections.singletonList(tableInfo);
+    public BiMap<Symbol, Symbol> expressionMapping() {
+        return HashBiMap.create(0);
+    }
+
+    @Override
+    public List<AbstractTableRelation> baseTables() {
+        return baseTables;
     }
 }

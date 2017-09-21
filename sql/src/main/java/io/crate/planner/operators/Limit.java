@@ -23,10 +23,10 @@
 package io.crate.planner.operators;
 
 import io.crate.analyze.OrderBy;
+import io.crate.analyze.relations.AbstractTableRelation;
 import io.crate.analyze.symbol.InputColumn;
 import io.crate.analyze.symbol.Literal;
 import io.crate.analyze.symbol.Symbol;
-import io.crate.metadata.table.TableInfo;
 import io.crate.operation.projectors.TopN;
 import io.crate.planner.Plan;
 import io.crate.planner.Planner;
@@ -37,6 +37,7 @@ import io.crate.planner.projection.builder.ProjectionBuilder;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 
@@ -73,13 +74,13 @@ class Limit implements LogicalPlan {
         int limit = firstNonNull(plannerContext.toInteger(this.limit), LogicalPlanner.NO_LIMIT);
         int offset = firstNonNull(plannerContext.toInteger(this.offset), 0);
 
-        Plan plan = source.build(plannerContext, projectionBuilder, limit + offset, 0, order, pageSizeHint);
+        Plan plan = source.build(plannerContext, projectionBuilder, limit, offset, order, pageSizeHint);
         List<Symbol> inputCols = InputColumn.fromSymbols(source.outputs());
         ResultDescription resultDescription = plan.resultDescription();
         if (ExecutionPhases.executesOnHandler(plannerContext.handlerNode(), resultDescription.nodeIds())) {
             plan.addProjection(
                 new TopNProjection(limit, offset, inputCols), TopN.NO_LIMIT, 0, resultDescription.orderBy());
-        } else {
+        } else if (resultDescription.limit() != limit || resultDescription.offset() != 0) {
             plan.addProjection(
                 new TopNProjection(limit + offset, 0, inputCols), limit, offset, resultDescription.orderBy());
         }
@@ -101,7 +102,12 @@ class Limit implements LogicalPlan {
     }
 
     @Override
-    public List<TableInfo> baseTables() {
+    public Map<Symbol, Symbol> expressionMapping() {
+        return source.expressionMapping();
+    }
+
+    @Override
+    public List<AbstractTableRelation> baseTables() {
         return source.baseTables();
     }
 
@@ -112,5 +118,12 @@ class Limit implements LogicalPlan {
                ", limit=" + limit +
                ", offset=" + offset +
                '}';
+    }
+
+    static int limitAndOffset(int limit, int offset) {
+        if (limit == TopN.NO_LIMIT) {
+            return limit;
+        }
+        return limit + offset;
     }
 }
