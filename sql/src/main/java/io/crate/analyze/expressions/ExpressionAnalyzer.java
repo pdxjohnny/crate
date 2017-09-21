@@ -1047,6 +1047,7 @@ public class ExpressionAnalyzer {
     }
 
     private static void verifyTypesForMatch(Iterable<? extends Symbol> columns, DataType columnType) {
+        // TODO mxm do we need this?
         Preconditions.checkArgument(
             io.crate.operation.predicate.MatchPredicate.SUPPORTED_TYPES.contains(columnType),
             String.format(Locale.ENGLISH, "Can only use MATCH on columns of type STRING or GEO_SHAPE, not on '%s'", columnType));

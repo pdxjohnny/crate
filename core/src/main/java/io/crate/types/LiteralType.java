@@ -67,6 +67,11 @@ public class LiteralType extends DataType {
         return "literal_" + innerType.getName();
     }
 
+//    @Override
+//    public boolean isConvertableTo(DataType other) {
+//        return innerType.isConvertableTo(other);
+//    }
+
     @Override
     public Streamer<?> streamer() {
         throw new IllegalStateException("LiteralType may not be streamed.");
