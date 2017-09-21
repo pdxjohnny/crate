@@ -33,15 +33,8 @@ import java.util.List;
 public interface FunctionResolver {
 
     /**
-     * Returns the actual function implementation for the given argument type list.
-     *
-     * @throws java.lang.IllegalArgumentException thrown if there is no function that can handle the given types.
-     */
-    FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException;
-
-    /**
      * Checks the given data types if they match a signature and returns a normalized list of data types which should
-     * be used as argument for {@link #getForTypes} to get the actual implementation. If not match is found null is
+     * be used as argument for {@link #getForTypes} to get the actual implementation. If no match is found, null is
      * returned.
      *
      * The returned list might be the same as the input list if no normalization is needed, however the input list
@@ -54,4 +47,11 @@ public interface FunctionResolver {
      */
     @Nullable
     List<DataType> getSignature(List<DataType> dataTypes);
+
+    /**
+     * Returns the actual function implementation for the given argument type list.
+     *
+     * @throws java.lang.IllegalArgumentException thrown if there is no function that can handle the given types.
+     */
+    FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException;
 }
