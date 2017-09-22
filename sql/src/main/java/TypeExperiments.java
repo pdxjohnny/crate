@@ -21,46 +21,53 @@
  */
 
 import com.google.common.base.Preconditions;
+import io.crate.analyze.symbol.Field;
+import io.crate.analyze.symbol.Literal;
+import io.crate.analyze.symbol.Symbol;
+import io.crate.analyze.symbol.SymbolVisitors;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
-import io.crate.types.IntegerType;
-import io.crate.types.LongType;
 import io.crate.types.StringType;
-import org.elasticsearch.common.inject.internal.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.Predicate;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
+/**
+ * TODO mxm
+ */
 public class TypeExperiments {
 
     public static void main(String[] args) {
 
-        ParameterDescriptor.ParameterType a = new ParameterDescriptor.ParameterType(
-            ParameterDescriptor.ParameterType.Type.FIXED, type -> type instanceof StringType);
+        ParameterType a = new ParameterType(ParameterType.Type.CONVERTIBLE, StringType.INSTANCE);
 
 
         ParameterDescriptor.ParameterType b = new ParameterDescriptor.ParameterType(
-            ParameterDescriptor.ParameterType.Type.FIXED, type -> type instanceof IntegerType, DataTypes.INTEGER);
+            ParameterDescriptor.ParameterType.Type.FIXED, DataTypes.INTEGER);
 
         ParameterDescriptor.ParameterType c = new ParameterDescriptor.ParameterType(
-            ParameterDescriptor.ParameterType.Type.FIXED, type -> type.isNumeric());
+            ParameterDescriptor.ParameterType.Type.CONVERTIBLE, DataTypes.NUMERIC_PRIMITIVE_TYPES);
 
         ParameterDescriptor descriptor = new ParameterDescriptor(a, a, b).withVarArg(c);
 
-        List<DataType> argList = new ArrayList<>();
-        argList.add(DataTypes.STRING);
-        argList.add(DataTypes.STRING);
-        argList.add(DataTypes.SHORT);
-        argList.add(DataTypes.LONG);
-        argList.add(DataTypes.LONG);
-        argList.add(DataTypes.LONG);
+        List<Symbol> argList = new ArrayList<>();
+        argList.add(Literal.of("test"));
+        argList.add(Literal.of("test"));
+        argList.add(Literal.of("test"));
+        argList.add(Literal.of(1L));
+        argList.add(Literal.of(1L));
+        argList.add(Literal.of(1.2));
+        argList.add(Literal.of(1L));
 
-        final List<DataType> newParams = descriptor.match(argList);
+        final List<Symbol> newParams = descriptor.match(argList);
         if (newParams != null) {
-            for (DataType dataType : newParams) {
+            for (Symbol dataType : newParams) {
                 System.out.print(dataType + ", ");
             }
             System.out.println();
@@ -73,7 +80,7 @@ public class TypeExperiments {
 
         private final ParameterType[] parameters;
 
-        // must come as last parameter
+        // varargs are always the last item in the parameter list
         private ParameterType varArgParameter;
 
         private ParameterDescriptor(ParameterType... parameters) {
@@ -85,150 +92,197 @@ public class TypeExperiments {
             return this;
         }
 
-        private static class ParameterType {
-
-            enum Type {
-                FIXED,
-                CONVERTIBLE
+        private void resetBoundTypes() {
+            for (ParameterType parameter : parameters) {
+                parameter.clear();
             }
+            varArgParameter.clear();
+        }
 
-            private final Type type;
-            private final Predicate<DataType> constraint;
-            @Nullable
-            private final DataType fallBack;
+        private Symbol cast(Symbol symbol, DataType dataType) {
+            return symbol;
+        }
 
-            private DataType boundType;
-            private boolean isValidType;
-
-            public ParameterType(Type type) {
-                this(type, x -> true, null);
+        private void bindParams(List<Symbol> params) {
+            for (int i = 0; i < parameters.length; i++) {
+                Symbol symbol = params.get(i);
+                parameters[i].bind(symbol, i + 1);
             }
-
-            public ParameterType(Type type, Predicate<DataType> constraint) {
-                this(type, constraint, null);
+            int numberOfParameters = params.size();
+            for (int i = parameters.length; i < numberOfParameters; i++) {
+                Symbol symbol = params.get(i);
+                varArgParameter.bind(symbol, i + 1);
             }
+        }
 
-            public ParameterType(Type type, Predicate<DataType> constraint, DataType fallBack) {
-                this.type = type;
-                this.constraint = constraint;
-                this.fallBack = fallBack;
+        private List<Symbol> retrieveBoundParams(List<Symbol> params) {
+            int numberOfParameters = params.size();
+            List<Symbol> newParams = new ArrayList<>(numberOfParameters);
+            for (int i = 0; i < parameters.length; i++) {
+                DataType boundType = parameters[i].getBoundType();
+                Symbol castSymbol = cast(params.get(i), boundType);
+                newParams.add(castSymbol);
             }
+            for (int i = parameters.length; i < numberOfParameters; i++) {
+                DataType boundType = varArgParameter.getBoundType();
+                Symbol castSymbol = cast(params.get(i), boundType);
+                newParams.add(castSymbol);
+            }
+            resetBoundTypes();
+            return newParams;
+        }
 
-            public DataType getBoundType(int argNum) {
-                Preconditions.checkState(boundType != null,
-                    "Type not bound when it should have been.");
-                if (!isValidType) {
-                    if (fallBack != null) {
-                        DataType fallBackConversion = convertTypes(boundType, fallBack, constraint);
-                        if (fallBackConversion != null) {
-                            this.boundType = fallBackConversion;
-                            this.isValidType = true;
+        public List<Symbol> match(List<Symbol> params) {
+            Objects.requireNonNull(params, "Supplied parameter types may not be null.");
+            if (params.size() < parameters.length) {
+                return null;
+            }
+            bindParams(params);
+            return retrieveBoundParams(params);
+        }
+
+    }
+
+    private static class ParameterType {
+
+        enum Type {
+            // Can only be assigned a type once
+            FIXED,
+            // Can be converted from one type to another type
+            CONVERTIBLE
+        }
+
+        private final Type type;
+        private final SortedSet<DataType> validTypes;
+
+        private DataType boundType;
+        private boolean isColumn;
+
+        public ParameterType(Type type) {
+            this(type, new DataType[]{});
+        }
+
+        public ParameterType(Type type, Collection<DataType> validTypes) {
+            this (type, validTypes.toArray(new DataType[]{}));
+        }
+
+        private ParameterType(Type type, DataType... validTypes) {
+            this.type = type;
+            this.validTypes = new TreeSet<>((o1, o2) -> {
+                if (o1.precedes(o2)) {
+                    return -1;
+                } else if (o2.precedes(o1)) {
+                    return 1;
+                }
+                return 0;
+            });
+            this.validTypes.addAll(Arrays.asList(validTypes));
+        }
+
+        public static ParameterType fixed(DataType dataType) {
+            return new ParameterType(Type.FIXED, dataType);
+        }
+
+        public static ParameterType fixed(DataType dataType) {
+            return new ParameterType(Type.FIXED, dataType);
+        }
+
+        public DataType getBoundType() {
+            Preconditions.checkState(boundType != null,
+                "Type not bound when it should have been.");
+            return this.boundType;
+        }
+
+        private void bind(Symbol symbol, int paramNum) {
+            Objects.requireNonNull(symbol, "Symbol to bind must not be null");
+            DataType dataType = Objects.requireNonNull(symbol.valueType(),
+                "Provided symbol type must not be null");
+            if (boundType != null && boundType != dataType) {
+                switch (type) {
+                    case FIXED:
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ENGLISH,
+                                "Can't bind parameter %s to type %s, already bound to type %s.",
+                                paramNum, dataType, boundType));
+                    case CONVERTIBLE:
+                        DataType convertedType = null;
+                        if (!isColumn) {
+                            convertedType = convertTypes(dataType, boundType);
                         }
-                    } else {
+                        if (convertedType == null) {
+                            throw new IllegalArgumentException(
+                                String.format(
+                                    Locale.ENGLISH,
+                                    "Can't convert type %s to type %s or vice-versa for parameter %s.",
+                                    dataType, boundType, paramNum));
+                        }
+                        this.boundType = convertedType;
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unknown ParameterType.Type " + type);
+                }
+            } else {
+                this.isColumn = isColumn(symbol);
+                if (!validTypes.isEmpty() && !validTypes.contains(dataType)) {
+                    DataType convertedType = null;
+                    if (!isColumn) {
+                        convertedType = convert(dataType, validTypes.first());
+                    }
+                    if (convertedType == null) {
                         throw new IllegalArgumentException(
                             String.format(
                                 Locale.ENGLISH,
                                 "Parameter %s is of invalid type %s",
-                                argNum, boundType));
+                                paramNum, boundType));
                     }
-                }
-                return this.boundType;
-            }
-
-            private void bind(DataType dataType, int paramNum) {
-                Objects.requireNonNull(dataType, "DataType to bind must not be null");
-                if (boundType != null && boundType != dataType) {
-                    switch (type) {
-                        case FIXED:
-                            throw new IllegalArgumentException(
-                                String.format(
-                                    Locale.ENGLISH,
-                                    "Can't bind parameter %s to type %s, already bound to type %s.",
-                                    paramNum, dataType, boundType));
-                        case CONVERTIBLE:
-                            DataType convertedType = convertTypes(boundType, dataType, constraint);
-                            if (convertedType == null) {
-                                throw new IllegalArgumentException(
-                                    String.format(
-                                        Locale.ENGLISH,
-                                        "Can't convert type %s to type %s or vice-versa.",
-                                        boundType, dataType));
-                            }
-                            this.boundType = convertedType;
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unknown ParameterType.Type " + type);
-                    }
+                    this.boundType = convertedType;
                 } else {
-                    this.isValidType = constraint.test(dataType);
                     this.boundType = dataType;
                 }
             }
-
-            private void clear() {
-                this.boundType = null;
-            }
-
-            /**
-             * Tries to convert two {@link DataType} by respecting the precedence if possible.
-             * For example, if given type A and type B, where A has higher precedence,
-             * first try to cast B to A. If that doesn't work, try casting A to B.
-             * @param type1 The first type given
-             * @param type2 The second type given
-             * @param constraint The constraint test to ensure type boundaries.
-             * @return Either type1 or type2 depending on precedence and convertibility.
-             */
-            private static DataType convertTypes(DataType type1,
-                                                 DataType type2,
-                                                 Predicate<DataType> constraint) {
-                final DataType targetType;
-                final DataType sourceType;
-                if (type1.precedes(type2)) {
-                    targetType = type1;
-                    sourceType = type2;
-                } else {
-                    targetType = type2;
-                    sourceType = type1;
-                }
-                if (sourceType.isConvertableTo(targetType) && constraint.test(targetType)) {
-                    return targetType;
-                } else if (targetType.isConvertableTo(sourceType) && constraint.test(sourceType)) {
-                    return sourceType;
-                }
-                return null;
-            }
         }
 
-        private void resetBoundParameters() {
-            for (ParameterType parameter : parameters) {
-                parameter.clear();
-            }
+        private static boolean isColumn(Symbol symbol) {
+            return SymbolVisitors.any(s -> s instanceof Field, symbol);
         }
 
-        public List<DataType> match(List<DataType> params) {
-            Objects.requireNonNull(params);
-            if (params.size() < parameters.length) {
-                return null;
-            }
-            for (int i = 0; i < parameters.length; i++) {
-                parameters[i].bind(params.get(i), i + 1);
-            }
-            int numberOfParameters = params.size();
-            for (int i = parameters.length; i < numberOfParameters; i++) {
-                varArgParameter.bind(params.get(i), i + 1);
-            }
-            List<DataType> newParams = new ArrayList<>(numberOfParameters);
-            for (int i = 0; i < parameters.length; i++) {
-                newParams.add(parameters[i].getBoundType(i + 1));
-            }
-            for (int i = parameters.length; i < numberOfParameters; i++) {
-                newParams.add(varArgParameter.getBoundType(i + 1));
-            }
-            resetBoundParameters();
-            return newParams;
+        private void clear() {
+            this.boundType = null;
         }
 
+        private static DataType convert(DataType source, DataType target) {
+            if (source.isConvertableTo(target)) {
+                return target;
+            }
+            return null;
+        }
 
-
+        /**
+         * Tries to convert two {@link DataType} by respecting the precedence if possible.
+         * For example, if given type A and type B, where A has higher precedence,
+         * first try to cast B to A. If that doesn't work, try casting A to B.
+         * @param type1 The first type given
+         * @param type2 The second type given
+         * @return Either type1 or type2 depending on precedence and convertibility.
+         */
+        private DataType convertTypes(DataType type1, DataType type2) {
+            final DataType targetType;
+            final DataType sourceType;
+            if (type1.precedes(type2)) {
+                targetType = type1;
+                sourceType = type2;
+            } else {
+                targetType = type2;
+                sourceType = type1;
+            }
+            if (sourceType.isConvertableTo(targetType) && validTypes.contains(targetType)) {
+                return targetType;
+            } else if (targetType.isConvertableTo(sourceType) && validTypes.contains(sourceType)) {
+                return sourceType;
+            }
+            return null;
+        }
     }
+
 }
