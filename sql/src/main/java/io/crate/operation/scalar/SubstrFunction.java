@@ -24,11 +24,11 @@ package io.crate.operation.scalar;
 import com.google.common.annotations.VisibleForTesting;
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 import org.apache.lucene.util.BytesRef;
@@ -152,8 +152,10 @@ public class SubstrFunction extends Scalar<BytesRef, Object> {
     private static class Resolver extends BaseFunctionResolver {
 
         protected Resolver() {
-            super(Signature.numArgs(2, 3).and(
-                Signature.withLenientVarArgs(Signature.ArgMatcher.STRING, Signature.ArgMatcher.NUMERIC)));
+            super(FuncParams.of(
+                FuncParams.STRING_PARAM_TYPE,
+                FuncParams.NUMERIC_PARAM_TYPE)
+                .withVarArgs(1, FuncParams.NUMERIC_PARAM_TYPE));
         }
 
         private static FunctionInfo createInfo(List<DataType> types) {

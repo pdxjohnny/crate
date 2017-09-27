@@ -36,6 +36,7 @@ import io.crate.analyze.SubscriptValidator;
 import io.crate.analyze.relations.FieldProvider;
 import io.crate.analyze.relations.QueriedRelation;
 import io.crate.analyze.symbol.Field;
+import io.crate.analyze.symbol.FuncArg;
 import io.crate.analyze.symbol.Function;
 import io.crate.analyze.symbol.Literal;
 import io.crate.analyze.symbol.SelectSymbol;
@@ -209,7 +210,7 @@ public class ExpressionAnalyzer {
         }
     }
 
-    private FunctionInfo getBuiltinFunctionInfo(String name, List<DataType> argumentTypes) {
+    private FunctionInfo getBuiltinFunctionInfo(String name, List<? extends FuncArg> argumentTypes) {
         FunctionImplementation impl = functions.getBuiltin(name, argumentTypes);
         if (impl == null) {
             throw Functions.createUnknownFunctionException(name, argumentTypes);
@@ -217,7 +218,7 @@ public class ExpressionAnalyzer {
         return impl.info();
     }
 
-    private FunctionInfo getBuiltinOrUdfFunctionInfo(@Nullable String schema, String name, List<DataType> argumentTypes) {
+    private FunctionInfo getBuiltinOrUdfFunctionInfo(@Nullable String schema, String name, List<FuncArg> argumentTypes) {
         FunctionImplementation impl;
         if (schema == null) {
             impl = functions.getBuiltin(name, argumentTypes);
@@ -714,9 +715,10 @@ public class ExpressionAnalyzer {
         @Override
         protected Symbol visitNotExpression(NotExpression node, ExpressionAnalysisContext context) {
             Symbol argument = process(node.getValue(), context);
+            List<Symbol> arg = ImmutableList.of(argument);
             return allocateFunction(
-                getBuiltinFunctionInfo(NotPredicate.NAME, ImmutableList.of(argument.valueType())),
-                ImmutableList.of(argument),
+                getBuiltinFunctionInfo(NotPredicate.NAME, arg),
+                arg,
                 context);
         }
 

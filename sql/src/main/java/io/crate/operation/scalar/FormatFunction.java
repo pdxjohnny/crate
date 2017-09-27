@@ -24,17 +24,20 @@ package io.crate.operation.scalar;
 import com.google.common.base.Preconditions;
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 import org.apache.lucene.util.BytesRef;
 
 import java.util.List;
 import java.util.Locale;
+
+import static io.crate.metadata.FuncParams.ANY_PARAM_TYPE;
+import static io.crate.metadata.FuncParams.STRING_PARAM_TYPE;
 
 public class FormatFunction extends Scalar<BytesRef, Object> {
 
@@ -77,7 +80,7 @@ public class FormatFunction extends Scalar<BytesRef, Object> {
     private static class Resolver extends BaseFunctionResolver {
 
         protected Resolver() {
-            super(Signature.withLenientVarArgs(Signature.ArgMatcher.STRING, Signature.ArgMatcher.ANY));
+            super(FuncParams.of(STRING_PARAM_TYPE).withVarArgs(ANY_PARAM_TYPE.matchBaseType(DataType.class)));
         }
 
         private static FunctionInfo createInfo(List<DataType> types) {

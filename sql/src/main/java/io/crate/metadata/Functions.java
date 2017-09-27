@@ -25,6 +25,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+import io.crate.analyze.symbol.FuncArg;
 import io.crate.types.DataType;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -54,7 +55,6 @@ public class Functions {
     private Map<String, FunctionResolver> generateFunctionResolvers(Map<FunctionIdent, FunctionImplementation> functionImplementations) {
         Multimap<String, Tuple<FunctionIdent, FunctionImplementation>> signatures = getSignatures(functionImplementations);
         return signatures.keys().stream()
-            // TODO mxm do we need that?
             .distinct()
             .collect(Collectors.toMap(name -> name, name -> new GeneratedFunctionResolver(signatures.get(name))));
     }
@@ -84,7 +84,8 @@ public class Functions {
     }
 
     @Nullable
-    private static FunctionImplementation resolveFunctionForArgumentTypes(List<DataType> types, FunctionResolver resolver) {
+    private static FunctionImplementation resolveFunctionForArgumentTypes(List<? extends FuncArg> types,
+                                                                          FunctionResolver resolver) {
         List<DataType> signature = resolver.getSignature(types);
         if (signature != null) {
             return resolver.getForTypes(signature);
@@ -94,14 +95,15 @@ public class Functions {
 
     /**
      * Returns the built-in function implementation for the given function name and arguments.
+     * The types may be cast to match the built-in argument types.
      *
      * @param name The function name.
      * @param argumentsTypes The function argument types.
      * @return a function implementation or null if it was not found.
      */
     @Nullable
-    public FunctionImplementation getBuiltin(String name, List<DataType> argumentsTypes) {
-        FunctionResolver resolver = functionResolvers.get(name);
+    public FunctionImplementation getBuiltin(String name, List<? extends FuncArg> argumentsTypes) {
+        FunctionResolver resolver = lookupBuiltinFunctionResolver(name);
         if (resolver == null) {
             return null;
         }
@@ -109,27 +111,71 @@ public class Functions {
     }
 
     /**
-     * Returns the user-defined function implementation for the given function name and arguments.
+     * Returns the built-in function implementation for the given function name and argument types.
      *
      * @param name The function name.
-     * @param argumentsTypes The function argument types.
+     * @param dataTypes The function argument types.
+     * @return a function implementation or null if it was not found.
+     */
+    @Nullable
+    public FunctionImplementation getBuiltinByTypes(String name, List<DataType> dataTypes) {
+        FunctionResolver resolver = lookupBuiltinFunctionResolver(name);
+        return resolver.getForTypes(dataTypes);
+    }
+
+    /**
+     * Returns the user-defined function implementation for the given function name and arguments.
+     * The types may be cast to match the built-in argument types.
+     *
+     * @param name The function name.
+     * @param arguments The function arguments.
      * @return a function implementation.
      * @throws UnsupportedOperationException if no implementation is found.
      */
-    public FunctionImplementation getUserDefined(String schema, String name, List<DataType> argumentsTypes) throws UnsupportedOperationException {
+    public FunctionImplementation getUserDefined(String schema,
+                                                 String name,
+                                                 List<FuncArg> arguments) throws UnsupportedOperationException {
+        FunctionResolver resolver = lookupUdfFunctionResolver(schema, name, arguments);
+        FunctionImplementation impl = resolveFunctionForArgumentTypes(arguments, resolver);
+        if (impl == null) {
+            throw createUnknownFunctionException(name, arguments);
+        }
+        return impl;
+    }
+
+    /**
+     * Returns the user-defined function implementation for the given function name and argTypes.
+     *
+     * @param name The function name.
+     * @param argTypes The function argTypes.
+     * @return a function implementation.
+     * @throws UnsupportedOperationException if no implementation is found.
+     */
+    public FunctionImplementation getUserDefinedByTypes(String schema,
+                                                        String name,
+                                                        List<DataType> argTypes) throws UnsupportedOperationException {
+        FunctionResolver resolver = lookupUdfFunctionResolver(schema, name, argTypes);
+        FunctionImplementation impl = resolver.getForTypes(argTypes);
+        if (impl == null) {
+            throw createUnknownFunctionException(name, argTypes);
+        }
+        return impl;
+    }
+
+    private FunctionResolver lookupBuiltinFunctionResolver(String name) {
+        return functionResolvers.get(name);
+    }
+
+    private FunctionResolver lookupUdfFunctionResolver(String schema, String name, List<?> arguments) {
         Map<String, FunctionResolver> functionResolvers = udfResolversBySchema.get(schema);
         if (functionResolvers == null) {
-            throw createUnknownFunctionException(name, argumentsTypes);
+            throw createUnknownFunctionException(name, arguments);
         }
         FunctionResolver resolver = functionResolvers.get(name);
         if (resolver == null) {
-            throw createUnknownFunctionException(name, argumentsTypes);
+            throw createUnknownFunctionException(name, arguments);
         }
-        FunctionImplementation impl = resolveFunctionForArgumentTypes(argumentsTypes, resolver);
-        if (impl == null) {
-            throw createUnknownFunctionException(name, argumentsTypes);
-        }
-        return impl;
+        return resolver;
     }
 
     /**
@@ -143,31 +189,31 @@ public class Functions {
     public FunctionImplementation getQualified(FunctionIdent ident) throws UnsupportedOperationException {
         FunctionImplementation impl = null;
         if (ident.schema() == null) {
-            impl = getBuiltin(ident.name(), ident.argumentTypes());
+            impl = getBuiltinByTypes(ident.name(), ident.argumentTypes());
         }
         if (impl == null) {
-            impl = getUserDefined(ident.schema(), ident.name(), ident.argumentTypes());
+            impl = getUserDefinedByTypes(ident.schema(), ident.name(), ident.argumentTypes());
         }
         return impl;
     }
 
-    public static UnsupportedOperationException createUnknownFunctionException(String name, List<DataType> argumentTypes) {
+    public static UnsupportedOperationException createUnknownFunctionException(String name, List<?> arguments) {
         return new UnsupportedOperationException(
-            String.format(Locale.ENGLISH, "unknown function: %s(%s)", name, Joiner.on(", ").join(argumentTypes))
+            String.format(Locale.ENGLISH, "unknown function: %s(%s)", name, Joiner.on(", ").join(arguments))
         );
     }
 
     private static class GeneratedFunctionResolver implements FunctionResolver {
 
-        private final List<Signature.SignatureOperator> signatures;
+        private final List<FuncParams> allFuncParams;
         private final Map<List<DataType>, FunctionImplementation> functions;
 
         GeneratedFunctionResolver(Collection<Tuple<FunctionIdent, FunctionImplementation>> functionTuples) {
-            signatures = new ArrayList<>(functionTuples.size());
+            allFuncParams = new ArrayList<>(functionTuples.size());
             functions = new HashMap<>(functionTuples.size());
             for (Tuple<FunctionIdent, FunctionImplementation> functionTuple : functionTuples) {
                 List<DataType> argumentTypes = functionTuple.v1().argumentTypes();
-                signatures.add(Signature.of(argumentTypes));
+                allFuncParams.add(FuncParams.of(argumentTypes));
                 functions.put(argumentTypes, functionTuple.v2());
             }
         }
@@ -179,9 +225,9 @@ public class Functions {
 
         @Nullable
         @Override
-        public List<DataType> getSignature(List<DataType> dataTypes) {
-            for (Signature.SignatureOperator signature : signatures) {
-                List<DataType> sig = signature.apply(dataTypes);
+        public List<DataType> getSignature(List<? extends FuncArg> funcArgs) {
+            for (FuncParams funcParams : allFuncParams) {
+                List<DataType> sig = funcParams.match(funcArgs);
                 if (sig != null) {
                     return sig;
                 }

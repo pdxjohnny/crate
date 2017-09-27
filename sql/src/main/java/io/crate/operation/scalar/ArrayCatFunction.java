@@ -24,11 +24,11 @@ package io.crate.operation.scalar;
 import com.google.common.base.Preconditions;
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.types.ArrayType;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
@@ -87,12 +87,12 @@ class ArrayCatFunction extends Scalar<Object[], Object> {
     private static class Resolver extends BaseFunctionResolver {
 
         protected Resolver() {
-            // inner type differences are handled in getForTypes, so not strict varArgs
-            super(Signature.numArgs(2).and(Signature.withLenientVarArgs(Signature.ArgMatcher.ANY_ARRAY)));
+            super(FuncParams.of(FuncParams.ANY_ARRAY_PARAM_TYPE, FuncParams.ANY_ARRAY_PARAM_TYPE));
         }
 
         @Override
         public FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException {
+            // TODO mxm this is not needed anymore
             for (int i = 0; i < dataTypes.size(); i++) {
                 Preconditions.checkArgument(dataTypes.get(i) instanceof ArrayType, String.format(Locale.ENGLISH,
                     "Argument %d of the array_cat function cannot be converted to array", i + 1));

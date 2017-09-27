@@ -22,17 +22,18 @@
 package io.crate.operation.predicate;
 
 import com.google.common.base.Preconditions;
+import io.crate.analyze.symbol.FuncArg;
 import io.crate.analyze.symbol.Function;
 import io.crate.analyze.symbol.Literal;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.analyze.symbol.format.FunctionFormatSpec;
 import io.crate.data.Input;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.FunctionResolver;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.metadata.TransactionContext;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
@@ -101,6 +102,8 @@ public class IsNullPredicate<T> extends Scalar<Boolean, T> implements FunctionFo
 
     private static class Resolver implements FunctionResolver {
 
+        private static final FuncParams funcParams = FuncParams.of(FuncParams.ANY_PARAM_TYPE);
+
         @Override
         public FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException {
             Preconditions.checkArgument(
@@ -111,8 +114,8 @@ public class IsNullPredicate<T> extends Scalar<Boolean, T> implements FunctionFo
 
         @Nullable
         @Override
-        public List<DataType> getSignature(List<DataType> dataTypes) {
-            return Signature.SIGNATURES_SINGLE_ANY.apply(dataTypes);
+        public List<DataType> getSignature(List<? extends FuncArg> symbols) {
+            return funcParams.match(symbols);
         }
     }
 }

@@ -22,15 +22,16 @@
 
 package io.crate.operation.scalar.arithmetic;
 
+import io.crate.analyze.symbol.FuncArg;
 import io.crate.analyze.symbol.Function;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.data.Input;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.FunctionResolver;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.operation.scalar.ScalarFunctionModule;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
@@ -82,8 +83,8 @@ public abstract class NegateFunction<TOut, TIn> extends Scalar<TOut, TIn> {
 
         @Nullable
         @Override
-        public List<DataType> getSignature(List<DataType> dataTypes) {
-            return Signature.SIGNATURES_SINGLE_NUMERIC.apply(dataTypes);
+        public List<DataType> getSignature(List<? extends FuncArg> dataTypes) {
+            return FuncParams.of(FuncParams.NUMERIC_PARAM_TYPE).match(dataTypes);
         }
     };
 

@@ -21,6 +21,7 @@
 
 package io.crate.metadata;
 
+import io.crate.analyze.symbol.FuncArg;
 import io.crate.types.DataType;
 
 import javax.annotation.Nullable;
@@ -30,28 +31,29 @@ import java.util.List;
  * Resolver for functions which allows to represent a variable number of arguments and arguement types. Use this
  * resolver if static registration by {@link FunctionIdent} is not possible or leads to a high number of permutations.
  */
+// TODO mxm adjust description
 public interface FunctionResolver {
 
     /**
      * Checks the given data types if they match a signature and returns a normalized list of data types which should
-     * be used as argument for {@link #getForTypes} to get the actual implementation. If no match is found, null is
-     * returned.
+     * be used as argument for {@link #getForTypes(List)} to get the actual implementation. If no match is found, null
+     * is returned.
      *
      * The returned list might be the same as the input list if no normalization is needed, however the input list
      * is never modified and copied if a normalization occurs
      *
      * Normalization means that undefined types might become defined.
      *
-     * @param dataTypes a list of data types representing the types of the arguments
+     * @param funcArgs a list representing the types of the arguments
      * @return a normalized list of data types or null if no signature match is found
      */
     @Nullable
-    List<DataType> getSignature(List<DataType> dataTypes);
+    List<DataType> getSignature(List<? extends FuncArg> funcArgs);
 
     /**
      * Returns the actual function implementation for the given argument type list.
      *
      * @throws java.lang.IllegalArgumentException thrown if there is no function that can handle the given types.
      */
-    FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException;
+    FunctionImplementation getForTypes(List<DataType> symbols) throws IllegalArgumentException;
 }

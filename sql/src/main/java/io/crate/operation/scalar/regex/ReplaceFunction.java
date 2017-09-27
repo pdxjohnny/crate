@@ -21,16 +21,17 @@
 
 package io.crate.operation.scalar.regex;
 
+import io.crate.analyze.symbol.FuncArg;
 import io.crate.analyze.symbol.Function;
 import io.crate.analyze.symbol.Literal;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.data.Input;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.FunctionResolver;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.metadata.TransactionContext;
 import io.crate.operation.scalar.ScalarFunctionModule;
 import io.crate.types.DataType;
@@ -146,11 +147,11 @@ public class ReplaceFunction extends Scalar<BytesRef, Object> implements Functio
 
     @Nullable
     @Override
-    public List<DataType> getSignature(List<DataType> dataTypes) {
-        if (dataTypes.size() < 3 || dataTypes.size() > 4) {
-            return null;
-        }
-        return Signature.SIGNATURES_ALL_OF_SAME.apply(dataTypes);
+    public List<DataType> getSignature(List<? extends FuncArg> dataTypes) {
+        FuncParams funcParams = FuncParams.of(
+            FuncParams.ANY_PARAM_TYPE, FuncParams.ANY_PARAM_TYPE, FuncParams.ANY_PARAM_TYPE)
+            .withVarArgs(1, FuncParams.ANY_PARAM_TYPE);
+        return funcParams.match(dataTypes);
     }
 
     private static BytesRef eval(BytesRef value, String pattern, String replacement, @Nullable String flags) {

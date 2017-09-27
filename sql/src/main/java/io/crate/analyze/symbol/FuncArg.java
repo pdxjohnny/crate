@@ -20,28 +20,25 @@
  * agreement.
  */
 
-package io.crate.metadata;
+package io.crate.analyze.symbol;
 
-import io.crate.analyze.symbol.FuncArg;
 import io.crate.types.DataType;
 
-import javax.annotation.Nullable;
-import java.util.List;
-
 /**
- * A base class for implementing a function resolver which takes the signature operator as constructor argument.
+ * A single argument of a function call.
  */
-public abstract class BaseFunctionResolver implements FunctionResolver {
+public interface FuncArg {
 
-    private final FuncParams funcParams;
+    /**
+     * Returns the {@link DataType} of this {@link Function} argument.
+     * @return The DataType of the value.
+     */
+    DataType valueType();
 
-    protected BaseFunctionResolver(FuncParams funcParams) {
-        this.funcParams = funcParams;
-    }
-
-    @Nullable
-    @Override
-    public List<DataType> getSignature(List<? extends FuncArg> dataTypes) {
-        return funcParams.match(dataTypes);
-    }
+    /**
+     * Indicates whether a Symbol can be casted or not.
+     * Typically, we only allow casting of Literals.
+     * @return True is casting is possible, false otherwise.
+     */
+    boolean canBeCasted();
 }

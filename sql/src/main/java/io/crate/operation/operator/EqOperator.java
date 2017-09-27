@@ -26,10 +26,10 @@ import io.crate.analyze.symbol.Symbol;
 import io.crate.core.collections.MapComparator;
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
-import io.crate.metadata.Signature;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
 
@@ -132,7 +132,7 @@ public class EqOperator extends CmpOperator {
     static class EqOperatorResolver extends BaseFunctionResolver {
 
         EqOperatorResolver() {
-            super(Signature.numArgs(2).and(Signature.SIGNATURES_ALL_OF_SAME));
+            super(FuncParams.of(FuncParams.ANY_PARAM_TYPE, FuncParams.ANY_PARAM_TYPE));
         }
 
         @Override

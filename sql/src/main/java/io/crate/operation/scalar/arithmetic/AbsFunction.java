@@ -22,13 +22,14 @@
 package io.crate.operation.scalar.arithmetic;
 
 import com.google.common.collect.ImmutableList;
+import io.crate.analyze.symbol.FuncArg;
 import io.crate.data.Input;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.FunctionResolver;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.operation.scalar.ScalarFunctionModule;
 import io.crate.types.DataType;
 
@@ -68,14 +69,14 @@ public class AbsFunction extends Scalar<Number, Number> {
     private static class Resolver implements FunctionResolver {
 
         @Override
-        public FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException {
-            return new AbsFunction(dataTypes.get(0));
+        public FunctionImplementation getForTypes(List<DataType> symbols) throws IllegalArgumentException {
+            return new AbsFunction(symbols.get(0));
         }
 
         @Nullable
         @Override
-        public List<DataType> getSignature(List<DataType> dataTypes) {
-            return Signature.SIGNATURES_SINGLE_NUMERIC.apply(dataTypes);
+        public List<DataType> getSignature(List<? extends FuncArg> symbols) {
+            return FuncParams.of(FuncParams.NUMERIC_PARAM_TYPE).match(symbols);
         }
     }
 }

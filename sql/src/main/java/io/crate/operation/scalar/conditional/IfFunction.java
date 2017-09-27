@@ -28,11 +28,11 @@ import io.crate.analyze.symbol.Symbol;
 import io.crate.analyze.symbol.Symbols;
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.operation.scalar.ScalarFunctionModule;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
@@ -152,7 +152,7 @@ public class IfFunction extends Scalar<Object, Object> {
     private static class Resolver extends BaseFunctionResolver {
 
         public Resolver() {
-            super(Signature.withLenientVarArgs(Signature.ArgMatcher.BOOLEAN, Signature.ArgMatcher.ANY));
+            super(FuncParams.of(FuncParams.BOOLEAN_PARAM_TYPE).withVarArgs(FuncParams.ANY_PARAM_TYPE));
         }
 
         @Override

@@ -25,11 +25,11 @@ package io.crate.operation.scalar;
 import com.google.common.base.Preconditions;
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.types.ArrayType;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
@@ -86,14 +86,17 @@ class ArrayUniqueFunction extends Scalar<Object[], Object> {
 
     private static class Resolver extends BaseFunctionResolver {
 
+        private static FuncParams.ParamType ANY_ARRAY = FuncParams.ParamType.of(new ArrayType());
+
         protected Resolver() {
-            super(Signature.numArgs(1, 2).and(Signature.withLenientVarArgs(Signature.ArgMatcher.ANY_ARRAY)));
+            super(FuncParams.of(ANY_ARRAY).withVarArgs(ANY_ARRAY));
         }
 
         @Override
         public FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException {
             Preconditions.checkArgument(
-                dataTypes.size() >= 1 && dataTypes.size() <= 2, "array_unique function requires one or two arguments");
+                dataTypes.size() >= 1 && dataTypes.size() <= 2,
+                "array_unique function requires one or two arguments");
 
             for (int i = 0; i < dataTypes.size(); i++) {
                 Preconditions.checkArgument(dataTypes.get(i) instanceof ArrayType, String.format(Locale.ENGLISH,

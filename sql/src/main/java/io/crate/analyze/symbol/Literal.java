@@ -27,7 +27,6 @@ import java.util.stream.Stream;
 
 public class Literal<ReturnType> extends Symbol implements Input<ReturnType>, Comparable<Literal> {
 
-    // TODO mxm literal always of type OverloadedType
     private final Object value;
     private final DataType type;
 
@@ -123,6 +122,14 @@ public class Literal<ReturnType> extends Symbol implements Input<ReturnType>, Co
     @Override
     public SymbolType symbolType() {
         return SymbolType.LITERAL;
+    }
+
+    /**
+     * Literals may be casted if necessary.
+     */
+    @Override
+    public boolean canBeCasted() {
+        return true;
     }
 
     @Override

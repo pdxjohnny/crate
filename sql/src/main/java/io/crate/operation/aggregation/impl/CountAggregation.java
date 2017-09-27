@@ -30,10 +30,10 @@ import io.crate.analyze.symbol.ValueSymbolVisitor;
 import io.crate.breaker.RamAccountingContext;
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
-import io.crate.metadata.Signature;
 import io.crate.metadata.TransactionContext;
 import io.crate.operation.aggregation.AggregationFunction;
 import io.crate.types.DataType;
@@ -65,7 +65,7 @@ public class CountAggregation extends AggregationFunction<CountAggregation.LongS
     private static class CountAggregationFunctionResolver extends BaseFunctionResolver {
 
         CountAggregationFunctionResolver() {
-            super(Signature.numArgs(0, 1));
+            super(FuncParams.of().withVarArgs(1, FuncParams.ANY_PARAM_TYPE));
         }
 
         @Override

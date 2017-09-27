@@ -4,11 +4,11 @@ import com.google.common.collect.Sets;
 import io.crate.analyze.symbol.Function;
 import io.crate.analyze.symbol.Symbol;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.operation.scalar.ScalarFunctionModule;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
@@ -80,19 +80,20 @@ public class ArithmeticFunctions {
 
     static final class DoubleFunctionResolver extends BaseFunctionResolver {
 
-        private static final Signature.ArgMatcher ARITHMETIC_TYPE = Signature.ArgMatcher.of(
-            DataTypes.NUMERIC_PRIMITIVE_TYPES::contains, DataTypes.TIMESTAMP::equals);
+        private static final FuncParams.ParamType ARITHMETIC_TYPE = FuncParams.ParamType.of(
+            DataTypes.NUMERIC_PRIMITIVE_TYPES, DataTypes.TIMESTAMP);
+
         private final String name;
         private final BinaryOperator<Double> doubleFunction;
 
         DoubleFunctionResolver(String name, BinaryOperator<Double> doubleFunction) {
-            super(Signature.of(ARITHMETIC_TYPE, ARITHMETIC_TYPE));
+            super(FuncParams.of(ARITHMETIC_TYPE, ARITHMETIC_TYPE));
             this.name = name;
             this.doubleFunction = doubleFunction;
         }
 
         @Override
-        public FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException {
+        public FunctionImplementation getForTypes(List<DataType> args) throws IllegalArgumentException {
             return new BinaryScalar<>(doubleFunction, name, DataTypes.DOUBLE, FunctionInfo.DETERMINISTIC_ONLY);
         }
     }
@@ -100,8 +101,9 @@ public class ArithmeticFunctions {
 
     static final class ArithmeticFunctionResolver extends BaseFunctionResolver {
 
-        private static final Signature.ArgMatcher ARITHMETIC_TYPE = Signature.ArgMatcher.of(
-            DataTypes.NUMERIC_PRIMITIVE_TYPES::contains, DataTypes.TIMESTAMP::equals);
+        private static final FuncParams.ParamType ARITHMETIC_TYPE = FuncParams.ParamType.of(
+            DataTypes.NUMERIC_PRIMITIVE_TYPES, DataTypes.TIMESTAMP);
+
         private final String name;
         private final String operator;
         private final Set<FunctionInfo.Feature> features;
@@ -116,7 +118,7 @@ public class ArithmeticFunctions {
                                    BinaryOperator<Double> doubleFunction,
                                    BinaryOperator<Long> longFunction,
                                    BinaryOperator<Float> floatFunction) {
-            super(Signature.of(ARITHMETIC_TYPE, ARITHMETIC_TYPE));
+            super(FuncParams.of(ARITHMETIC_TYPE, ARITHMETIC_TYPE));
             this.name = name;
             this.operator = operator;
             this.doubleFunction = doubleFunction;
@@ -143,14 +145,14 @@ public class ArithmeticFunctions {
     }
 
     public static Function of(String name, Symbol first, Symbol second, Set<FunctionInfo.Feature> features) {
-        List<DataType> argumentTypes = Arrays.asList(first.valueType(), second.valueType());
-        if (containsTypesWithDecimal(argumentTypes)) {
+        List<DataType> dataTypes = Arrays.asList(first.valueType(), second.valueType());
+        if (containsTypesWithDecimal(dataTypes)) {
             return new Function(
-                genDoubleInfo(name, argumentTypes, features),
+                genDoubleInfo(name, dataTypes, features),
                 Arrays.asList(first, second));
         }
         return new Function(
-            genLongInfo(name, argumentTypes, features),
+            genLongInfo(name, dataTypes, features),
             Arrays.asList(first, second));
     }
 

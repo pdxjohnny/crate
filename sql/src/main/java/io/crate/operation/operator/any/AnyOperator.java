@@ -25,15 +25,17 @@ import io.crate.analyze.symbol.Function;
 import io.crate.core.collections.MapComparator;
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
-import io.crate.metadata.Signature;
 import io.crate.metadata.TransactionContext;
 import io.crate.operation.operator.Operator;
+import io.crate.types.ArrayType;
 import io.crate.types.BooleanType;
 import io.crate.types.CollectionType;
 import io.crate.types.DataType;
+import io.crate.types.SetType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -140,7 +142,9 @@ public abstract class AnyOperator extends Operator<Object> {
     public abstract static class AnyResolver extends BaseFunctionResolver {
 
         AnyResolver() {
-            super(Signature.of(Signature.ArgMatcher.ANY, Signature.ArgMatcher.ANY_COLLECTION));
+            super(FuncParams.of(
+                FuncParams.ParamType.of(),
+                FuncParams.ParamType.of(new ArrayType(), new SetType())));
         }
 
         public abstract FunctionImplementation newInstance(FunctionInfo info);

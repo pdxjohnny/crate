@@ -23,14 +23,15 @@ package io.crate.operation.scalar;
 
 import io.crate.data.Input;
 import io.crate.metadata.BaseFunctionResolver;
+import io.crate.metadata.FuncParams;
 import io.crate.metadata.FunctionIdent;
 import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.FunctionResolver;
 import io.crate.metadata.Scalar;
-import io.crate.metadata.Signature;
 import io.crate.types.DataType;
 import io.crate.types.DataTypes;
+import io.crate.types.SetType;
 
 import java.util.Collection;
 import java.util.List;
@@ -68,7 +69,7 @@ public class CollectionCountFunction extends Scalar<Long, Collection<DataType>> 
     static class CollectionCountResolver extends BaseFunctionResolver {
 
         CollectionCountResolver() {
-            super(Signature.of(Signature.ArgMatcher.ANY_SET));
+            super(FuncParams.of(FuncParams.ParamType.of().matchBaseType(SetType.class)));
         }
 
         @Override

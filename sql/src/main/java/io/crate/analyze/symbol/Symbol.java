@@ -25,7 +25,7 @@ import io.crate.planner.ExplainLeaf;
 import io.crate.types.DataType;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public abstract class Symbol implements Writeable, ExplainLeaf {
+public abstract class Symbol implements FuncArg, Writeable, ExplainLeaf {
 
     public static boolean isLiteral(Symbol symbol, DataType expectedType) {
         return symbol.symbolType() == SymbolType.LITERAL
@@ -41,5 +41,13 @@ public abstract class Symbol implements Writeable, ExplainLeaf {
     @Override
     public String toString() {
         return representation();
+    }
+
+    /**
+     * Typically, we only allow casting of Literals.
+     */
+    @Override
+    public boolean canBeCasted() {
+        return false;
     }
 }
