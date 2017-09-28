@@ -22,6 +22,7 @@
 package io.crate.integrationtests;
 
 import io.crate.testing.TestingHelpers;
+import io.crate.testing.UseRandomizedSession;
 import io.crate.testing.UseSemiJoins;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.Is;
@@ -31,6 +32,7 @@ import static io.crate.integrationtests.SubSelectIntegrationTest.NO_SESSION_SETT
 import static io.crate.testing.TestingHelpers.isPrintedTable;
 import static org.hamcrest.Matchers.is;
 
+@UseRandomizedSession()
 public class AnyIntegrationTest extends SQLTransportIntegrationTest {
 
     @Test
